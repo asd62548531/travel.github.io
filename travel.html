@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>旅人手札 - 旅遊計劃書 (航班導航優化)</title>
+    <title>旅人手札 - 旅遊計劃書 (日期優化)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -14,7 +14,6 @@
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         .tab-active { border-bottom: 3px solid #3b82f6; color: #3b82f6; font-weight: bold; }
         .card-shadow { box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
-        /* 確保時間輸入框的樣式一致 */
         .input-time-24h::-webkit-calendar-picker-indicator { filter: invert(0.5); }
     </style>
 </head>
@@ -63,7 +62,7 @@
                     <span class="text-xl font-mono font-bold text-blue-600">{{ settings.flightOutTime }}</span>
                 </div>
                 <div class="mt-2 flex items-center text-sm text-gray-600">
-                    <span class="font-bold mr-2">{{ settings.airportOut }}</span>
+                    <span class="font-bold mr-2">{{ settings.airportOut }} / {{ settings.airportOutName }}</span>
                     <i class="fa-solid fa-arrow-right mx-2 text-gray-400"></i>
                     <span class="font-bold ml-2">{{ settings.destination }}</span>
                 </div>
@@ -75,7 +74,7 @@
                 <p>點擊右下角按鈕新增行程</p>
             </div>
 
-            <div v-for="event in sortedEvents" :key="event.id" class="bg-white rounded-lg p-4 mb-3 card-shadow border-l-4 border-orange-400 relative group">
+            <div v-for="(event, index) in sortedEvents" :key="event.id" class="bg-white rounded-lg p-4 mb-3 card-shadow border-l-4 border-orange-400 relative group">
                 <div class="flex justify-between items-start">
                     <div class="flex-1">
                         <div class="flex items-center mb-1">
@@ -88,8 +87,9 @@
                         <i class="fa-solid fa-trash"></i>
                     </button>
                 </div>
-                <a :href="getGoogleMapLink(event.location)" target="_blank" class="mt-3 inline-flex items-center text-sm text-blue-500 font-medium hover:underline">
+                <a :href="getGoogleMapLink(event.location, getStartLocationForNavigation(index))" target="_blank" class="mt-3 inline-flex items-center text-sm text-blue-500 font-medium hover:underline">
                     <i class="fa-solid fa-location-dot mr-1"></i> 導航去這裡
+                    <span v-if="getStartLocationForNavigation(index) !== '當前位置'" class="text-xs text-gray-400 ml-2"> (從 {{ getStartLocationForNavigation(index) }} 出發)</span>
                 </a>
             </div>
 
@@ -104,7 +104,7 @@
                 <div class="mt-2 flex items-center text-sm text-gray-600">
                     <span class="font-bold mr-2">{{ settings.destination }}</span>
                     <i class="fa-solid fa-arrow-right mx-2 text-gray-400"></i>
-                    <span class="font-bold ml-2">{{ settings.airportOut }}</span>
+                    <span class="font-bold ml-2">{{ settings.airportOut }} / {{ settings.airportOutName }}</span>
                 </div>
                 <div class="text-xs text-gray-500 mt-1">預計落地時間：{{ settings.flightReturnInTime }}</div>
             </div>
@@ -128,10 +128,12 @@
 
                 <div v-if="settingsStep === 2" class="space-y-4">
                     <div>
-                        <label class="block text-sm font-bold text-gray-600 mb-1">目的地</label>
-                        <input v-model="settings.destination" type="text" class="w-full border rounded p-2 text-lg" placeholder="例如：東京成田 (NRT)">
-                        <p class="text-xs text-gray-500 mt-1">輸入城市/機場代號，方便辨識。</p>
+                        <label class="block text-sm font-bold text-gray-600 mb-1">目的地機場代號</label>
+                        <input v-model="destinationAirportCode" type="text" class="w-full border rounded p-2 text-lg uppercase" placeholder="例如：NRT 或 KIX">
+                        <p v-if="settings.destination" class="text-sm text-green-600 mt-1 font-bold">自動帶入名稱：{{ settings.destination }}</p>
+                        <p v-else class="text-xs text-gray-500 mt-1">請輸入代號 (例如 TPE, NRT, ICN) 以自動帶入名稱。</p>
                     </div>
+
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-bold text-gray-600 mb-1">去程日期</label>
@@ -139,13 +141,15 @@
                         </div>
                         <div>
                             <label class="block text-sm font-bold text-gray-600 mb-1">回程日期</label>
-                            <input v-model="settings.endDate" type="date" class="w-full border rounded p-2 text-lg">
+                            <input v-model="settings.endDate" type="date" class="w-full border rounded p-2 text-lg" :min="settings.startDate">
                         </div>
                     </div>
+                    
                     <div>
                         <label class="block text-sm font-bold text-gray-600 mb-1">出發機場代號 (預設 TPE)</label>
                         <input v-model="settings.airportOut" type="text" class="w-full border rounded p-2 text-lg uppercase" placeholder="TPE">
-                        <p class="text-xs text-gray-500 mt-1">例如：TPE (桃園) 或 KHH (高雄)。</p>
+                        <p v-if="settings.airportOutName" class="text-xs text-gray-500 mt-1">已識別：{{ settings.airportOutName }}</p>
+                        <p v-else class="text-xs text-gray-500 mt-1">例如：TPE (桃園) 或 KHH (高雄)。</p>
                     </div>
                 </div>
 
@@ -247,44 +251,91 @@
 <script>
     const { createApp, ref, computed, watch, onMounted } = Vue;
 
+    // --- 靜態機場代號對照表 ---
+    const AIRPORT_MAP = {
+        'TPE': '臺北桃園國際機場', 'TSA': '臺北松山機場', 'KHH': '高雄小港國際機場', 'TXG': '臺中清泉崗機場',
+        'NRT': '東京成田國際機場', 'HND': '東京羽田國際機場', 'KIX': '大阪關西國際機場', 'ICN': '首爾仁川國際機場', 
+        'PUS': '釜山金海國際機場', 'HKG': '香港國際機場', 'MFM': '澳門國際機場', 'PVG': '上海浦東國際機場',
+        'PEK': '北京首都國際機場', 'CAN': '廣州白雲國際機場', 'BKK': '曼谷素萬那普機場', 'DMK': '曼谷廊曼機場',
+        'SIN': '新加坡樟宜機場', 'KUL': '吉隆坡國際機場', 'SFO': '舊金山國際機場', 'LAX': '洛杉磯國際機場',
+        'JFK': '紐約甘迺迪國際機場', 'LHR': '倫敦希斯洛機場', 'CDG': '巴黎戴高樂機場',
+    };
+    // -------------------------
+
     createApp({
         setup() {
-            // 資料狀態
             const isSettingsOpen = ref(false);
             const settingsStep = ref(1); 
             const isAddModalOpen = ref(false);
             const currentDayIndex = ref(0);
             
+            const destinationAirportCode = ref('');
+
             const settings = ref({
-                airline: '', // 1. 航空公司名稱
-                destination: '', // 2. 新增：目的地
-                airportOut: 'TPE', // 2. 預設：TPE
-                startDate: '', // 2. 去程日期
-                endDate: '', // 2. 回程日期
-                flightOutNumber: '', // 3. 去程航班編號
-                flightOutTime: '', // 3. 去程起飛時間 (24H)
-                flightInTime: '', // 3. 新增：去程抵達時間 (24H)
-                flightReturnNumber: '', // 4. 回程航班編號
-                flightReturnTime: '', // 4. 回程起飛時間 (24H)
-                flightReturnInTime: '' // 4. 新增：回程抵達時間 (24H)
+                airline: '',
+                destination: '', 
+                airportOut: 'TPE', 
+                airportOutName: AIRPORT_MAP['TPE'], 
+                startDate: '', 
+                endDate: '', 
+                flightOutNumber: '', 
+                flightOutTime: '', 
+                flightInTime: '', 
+                flightReturnNumber: '', 
+                flightReturnTime: '', 
+                flightReturnInTime: '' 
             });
 
             const events = ref([]); 
             const newEvent = ref({ time: '09:00', location: '', note: '' }); 
 
+            // --- 監聽與自動帶入邏輯 ---
+            
+            // ⭐ 日期修正：確保回程日期不早於去程日期
+            watch(() => settings.value.startDate, (newStartDate) => {
+                if (settings.value.endDate && new Date(settings.value.endDate) < new Date(newStartDate)) {
+                    settings.value.endDate = newStartDate;
+                }
+            });
+
+            // 目的地代號自動帶入名稱
+            watch(destinationAirportCode, (newCode) => {
+                const code = newCode ? newCode.toUpperCase() : '';
+                if (AIRPORT_MAP[code]) {
+                    settings.value.destination = `${AIRPORT_MAP[code]} (${code})`;
+                } else if (!newCode) {
+                    settings.value.destination = '';
+                }
+            });
+
+            // 出發機場代號自動帶入名稱
+            watch(() => settings.value.airportOut, (newCode) => {
+                const code = newCode ? newCode.toUpperCase() : '';
+                settings.value.airportOutName = AIRPORT_MAP[code] || ''; 
+            });
+
+
             // 初始化讀取 LocalStorage
             onMounted(() => {
                 const savedSettings = localStorage.getItem('travel_settings');
                 const savedEvents = localStorage.getItem('travel_events');
-                if (savedSettings) settings.value = JSON.parse(savedSettings);
+                if (savedSettings) {
+                    settings.value = JSON.parse(savedSettings);
+                    settings.value.airportOutName = AIRPORT_MAP[settings.value.airportOut] || '';
+                    const match = settings.value.destination.match(/\(([A-Z]{3})\)/);
+                    if (match) {
+                        destinationAirportCode.value = match[1];
+                    }
+                }
                 if (savedEvents) events.value = JSON.parse(savedEvents);
             });
 
             // 儲存監聽
             watch(settings, (newVal) => localStorage.setItem('travel_settings', JSON.stringify(newVal)), { deep: true });
             watch(events, (newVal) => localStorage.setItem('travel_events', JSON.stringify(newVal)), { deep: true });
+            
+            // --- 輔助計算屬性和方法 (與上次相同) ---
 
-            // 計算所有旅遊日期
             const daysList = computed(() => {
                 if (!settings.value.startDate || !settings.value.endDate) return [];
                 const start = new Date(settings.value.startDate);
@@ -296,7 +347,6 @@
                 return list;
             });
 
-            // 篩選並排序當天行程 (依照 24小時制 time 排序)
             const sortedEvents = computed(() => {
                 return events.value
                     .filter(e => e.dayIndex === currentDayIndex.value)
@@ -309,7 +359,27 @@
                 return (isD1 || isLast) && sortedEvents.value.length === 0;
             });
 
-            // 功能函數
+            const getStartLocationForNavigation = (index) => {
+                if (index > 0) {
+                    return sortedEvents.value[index - 1].location;
+                }
+                if (currentDayIndex.value === 0) {
+                    return settings.value.destination;
+                }
+                return '當前位置';
+            };
+
+            const getGoogleMapLink = (destination, startLocation) => {
+                const daddr = encodeURIComponent(destination);
+                let saddr;
+                if (startLocation === '當前位置') {
+                    saddr = 'Current+Location'; 
+                } else {
+                    saddr = encodeURIComponent(startLocation);
+                }
+                return `https://www.google.com/maps/dir/${saddr}/${daddr}`;
+            };
+
             const saveSettings = () => {
                  const requiredFields = [
                     settings.value.airline, settings.value.destination, settings.value.startDate, settings.value.endDate,
@@ -321,8 +391,7 @@
                     return;
                 }
                 isSettingsOpen.value = false;
-                settingsStep.value = 1; // 儲存完畢後重置步驟
-                // 如果切換日期導致當前頁面索引超出範圍，重置為 D1
+                settingsStep.value = 1; 
                 if(currentDayIndex.value >= daysList.value.length) currentDayIndex.value = 0;
             };
 
@@ -351,11 +420,6 @@
                 }
             };
 
-            const getGoogleMapLink = (location) => {
-                // Google Maps 搜尋連結
-                return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
-            };
-
             const formatDateSimple = (dateObj) => {
                 const month = dateObj.getMonth() + 1;
                 const date = dateObj.getDate();
@@ -366,9 +430,9 @@
 
             return {
                 isSettingsOpen, settingsStep, isAddModalOpen, currentDayIndex,
-                settings, daysList, sortedEvents, newEvent, isFlightDayOnly,
+                settings, daysList, sortedEvents, newEvent, isFlightDayOnly, destinationAirportCode,
                 saveSettings, openAddModal, addEvent, deleteEvent, 
-                getGoogleMapLink, formatDateSimple
+                getGoogleMapLink, formatDateSimple, getStartLocationForNavigation
             };
         }
     }).mount('#app');
